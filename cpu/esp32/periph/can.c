@@ -87,11 +87,11 @@
 
 /* driver interface functions */
 static int  _esp_can_init(candev_t *candev);
-static int  _esp_can_send(candev_t *candev, const struct can_frame *frame);
+static int  _esp_can_send(candev_t *candev, const can_frame_t *frame);
 static void _esp_can_isr(candev_t *candev);
 static int  _esp_can_set(candev_t *candev, canopt_t opt, void *value, size_t value_len);
 static int  _esp_can_get(candev_t *candev, canopt_t opt, void *value, size_t max_len);
-static int  _esp_can_abort(candev_t *candev, const struct can_frame *frame);
+static int  _esp_can_abort(candev_t *candev, const can_frame_t *frame);
 static int  _esp_can_set_filter(candev_t *candev, const struct can_filter *filter);
 static int  _esp_can_remove_filter(candev_t *candev, const struct can_filter *filter);
 
@@ -217,7 +217,7 @@ static int _esp_can_init(candev_t *candev)
     return 0;
 }
 
-static int _esp_can_send(candev_t *candev, const struct can_frame *frame)
+static int _esp_can_send(candev_t *candev, const can_frame_t *frame)
 {
     can_t *dev = container_of(candev, can_t, candev);
 
@@ -235,7 +235,7 @@ static int _esp_can_send(candev_t *candev, const struct can_frame *frame)
     }
 
     /* save reference to frame in transmission (marks transmitter as busy) */
-    dev->tx_frame = (struct can_frame*)frame;
+    dev->tx_frame = (can_frame_t*)frame;
 
     /* prepare the frame as expected by ESP32 */
     twai_hal_frame_t esp_frame = { };
@@ -453,7 +453,7 @@ static int _esp_can_get(candev_t *candev, canopt_t opt, void *value, size_t max_
     return res;
 }
 
-static int _esp_can_abort(candev_t *candev, const struct can_frame *frame)
+static int _esp_can_abort(candev_t *candev, const can_frame_t *frame)
 {
     can_t *dev = container_of(candev, can_t, candev);
 
@@ -809,7 +809,7 @@ static void IRAM_ATTR _esp_can_intr_handler(void *arg)
             if (twai_hal_read_rx_buffer_and_clear(&hw, &esp_frame) &&
                 (dev->rx_frames_num < ESP_CAN_MAX_RX_FRAMES)) {
                 /* prepare the CAN frame from ESP32 CAN frame */
-                struct can_frame frame = {};
+                can_frame_t frame = {};
 
                 if (esp_frame.frame_format) {
                     frame.can_id = esp_frame.extended.id[0];

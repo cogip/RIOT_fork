@@ -148,7 +148,7 @@ typedef struct can can_t;
 
 /** This structure holds anything related to the receive part */
 typedef struct candev_stm32_rx_fifo {
-    struct can_frame frame[CAN_STM32_RX_MAIL_FIFO]; /**< Receive FIFO */
+    can_frame_t frame[CAN_STM32_RX_MAIL_FIFO];      /**< Receive FIFO */
     int write_idx;                                  /**< Write index in the receive FIFO */
     int read_idx;                                   /**< Read index in the receive FIFO*/
     int is_full;                                    /**< Flag set when the FIFO is full */
@@ -164,12 +164,11 @@ typedef struct candev_stm32_isr {
 /** STM32 CAN device descriptor */
 struct can {
     candev_t candev;                    /**< Common candev struct */
-    const can_conf_t *conf;    /**< Configuration */
+    const can_conf_t *conf;             /**< Configuration */
     gpio_t rx_pin;                      /**< RX pin */
     gpio_t tx_pin;                      /**< TX pin */
     gpio_af_t af;                       /**< Alternate pin function to use */
-    /** Tx mailboxes */
-    const struct can_frame *tx_mailbox[CAN_STM32_TX_MAILBOXES];
+    const can_frame_t *tx_mailbox[CAN_STM32_TX_MAILBOXES]; /**< Tx mailboxes */
     candev_stm32_rx_fifo_t rx_fifo;     /**< Rx FIFOs */
     candev_stm32_isr_t isr_flags;       /**< ISR flags */
 };
