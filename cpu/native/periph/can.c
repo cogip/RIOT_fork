@@ -44,11 +44,11 @@
 #include "debug.h"
 
 static int _init(candev_t *candev);
-static int _send(candev_t *candev, const struct can_frame *frame);
+static int _send(candev_t *candev, const can_frame_t *frame);
 static void _isr(candev_t *candev);
 static int _set(candev_t *candev, canopt_t opt, void *value, size_t value_len);
 static int _get(candev_t *candev, canopt_t opt, void *value, size_t max_len);
-static int _abort(candev_t *candev, const struct can_frame *frame);
+static int _abort(candev_t *candev, const can_frame_t *frame);
 static int _set_filter(candev_t *candev, const struct can_filter *filter);
 static int _remove_filter(candev_t *candev, const struct can_filter *filter);
 static int _power_up(candev_t *candev);
@@ -67,7 +67,7 @@ static const candev_driver_t candev_linux_driver = {
     .remove_filter = _remove_filter,
 };
 
-static candev_event_t _can_error_to_can_evt(struct can_frame can_frame_err);
+static candev_event_t _can_error_to_can_evt(can_frame_t can_frame_err);
 static void _callback_can_sigio(int sock, void *arg);
 
 can_conf_t candev_conf[CAN_DLL_NUMOF] = {
@@ -94,7 +94,7 @@ int can_init(can_t *dev, const can_conf_t *conf)
     return 0;
 }
 
-static candev_event_t _can_error_to_can_evt(struct can_frame can_frame_err)
+static candev_event_t _can_error_to_can_evt(can_frame_t can_frame_err)
 {
     candev_event_t can_evt = CANDEV_EVENT_NOEVENT;
     can_err_mask_t can_err_type = can_frame_err.can_id & CAN_ERR_MASK;
@@ -210,12 +210,12 @@ static int _init(candev_t *candev)
     return 0;
 }
 
-static int _send(candev_t *candev, const struct can_frame *frame)
+static int _send(candev_t *candev, const can_frame_t *frame)
 {
     int nbytes;
     can_t *dev = (can_t *)candev;
 
-    nbytes = real_write(dev->sock, frame, sizeof(struct can_frame));
+    nbytes = real_write(dev->sock, frame, sizeof(can_frame_t));
 
     if (nbytes < frame->len) {
         real_printf("CAN write op failed, nbytes=%i\n", nbytes);
@@ -232,7 +232,7 @@ static int _send(candev_t *candev, const struct can_frame *frame)
 static void _isr(candev_t *candev)
 {
     int nbytes;
-    struct can_frame rcv_frame;
+    can_frame_t rcv_frame;
     can_t *dev = (can_t *)candev;
 
     if (dev == NULL) {
@@ -240,14 +240,14 @@ static void _isr(candev_t *candev)
     }
 
     DEBUG("candev_native _isr: CAN SIGIO interrupt received, sock = %i\n", dev->sock);
-    nbytes = real_read(dev->sock, &rcv_frame, sizeof(struct can_frame));
+    nbytes = real_read(dev->sock, &rcv_frame, sizeof(can_frame_t));
 
     if (nbytes < 0) {   /* SIGIO signal was probably due to an error with the socket */
         DEBUG("candev_native _isr: read: error during read\n");
         return;
     }
 
-    if (nbytes < (int)sizeof(struct can_frame)) {
+    if (nbytes < (int)sizeof(can_frame_t)) {
         DEBUG("candev_native _isr: read: incomplete CAN frame\n");
         return;
     }
@@ -544,7 +544,7 @@ static int _remove_filter(candev_t *candev, const struct can_filter *filter)
     return 0;
 }
 
-static int _abort(candev_t *candev, const struct can_frame *frame)
+static int _abort(candev_t *candev, const can_frame_t *frame)
 {
     (void)frame;
     (void)candev;

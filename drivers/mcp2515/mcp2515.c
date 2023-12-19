@@ -156,14 +156,14 @@ static void _fill_extended_id(uint32_t id, uint8_t *bytebuf)
     bytebuf[3] = (uint8_t)(id & 0x000000FFUL);                  /* T/RXBnEID0 */
 }
 
-int mcp2515_send(candev_mcp2515_t *dev, const struct can_frame *frame,
+int mcp2515_send(candev_mcp2515_t *dev, const can_frame_t *frame,
                  int mailbox)
 {
     uint8_t prio = 1;
     uint8_t outbuf[BUFFER_SIZE];
     uint8_t ctrl;
 
-    struct can_frame framebuf;
+    can_frame_t framebuf;
 
     if (frame->len > CAN_MAX_DLEN) {
         return -1;
@@ -206,7 +206,7 @@ int mcp2515_send(candev_mcp2515_t *dev, const struct can_frame *frame,
     return mailbox;
 }
 
-int mcp2515_receive(candev_mcp2515_t *dev, struct can_frame *frame, int mailbox)
+int mcp2515_receive(candev_mcp2515_t *dev, can_frame_t *frame, int mailbox)
 {
     uint8_t inbuf[BUFFER_SIZE];
 

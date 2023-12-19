@@ -65,8 +65,8 @@ typedef struct can {
     candev_t          candev;       /**< candev base structure */
     canopt_state_t    state;        /**< current state of device */
 
-    struct can_frame *tx_frame;                           /**< frame in transmission  */
-    struct can_frame  rx_frames[ESP_CAN_MAX_RX_FRAMES];   /**< frames received        */
+    can_frame_t *tx_frame;                                /**< frame in transmission  */
+    can_frame_t  rx_frames[ESP_CAN_MAX_RX_FRAMES];        /**< frames received        */
     struct can_filter rx_filters[ESP_CAN_MAX_RX_FILTERS]; /**< acceptance filter list */
 
     uint32_t rx_frames_wptr;    /**< pointer to ring buffer for write */
