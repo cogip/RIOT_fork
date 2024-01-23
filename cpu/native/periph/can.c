@@ -168,7 +168,11 @@ static int _init(candev_t *candev)
     can_err_mask_t err_mask = CAN_ERR_TX_TIMEOUT |
                               CAN_ERR_BUSOFF |
                               CAN_ERR_CRTL;
-    ret = real_setsockopt(dev->sock, SOL_CAN_RAW, CAN_RAW_ERR_FILTER,
+    ret = real_setsockopt(dev->sock, SOL_CAN_RAW,
+#ifdef MODULE_FDCAN
+                          CAN_RAW_FD_FRAMES |
+#endif
+                          CAN_RAW_ERR_FILTER,
                           &err_mask, sizeof(err_mask));
 
     if (ret < 0) {
