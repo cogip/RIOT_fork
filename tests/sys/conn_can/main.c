@@ -239,7 +239,7 @@ static int _close(int argc, char **argv)
 #ifdef MODULE_CAN_ISOTP
 static int _bind_isotp(int argc, char **argv)
 {
-    if (argc < 4) {
+    if (argc != 6) {
         print_usage();
         return 1;
     }
@@ -737,6 +737,10 @@ int main(void)
     }
 
     char line_buf[SHELL_DEFAULT_BUFSIZE];
+    char *test_bind[] = {"test_can", "bind_isotp", "0", "0", "80000002", "80000003"};
+    _bind_isotp(6, test_bind);
+    char *test_recv[] = {"test_can", "recv_isotp", "0", "100000000"};
+    _receive_isotp(4, test_recv);
     shell_run(_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     return 0;
