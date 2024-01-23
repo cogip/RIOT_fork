@@ -103,7 +103,7 @@ static candev_event_t _can_error_to_can_evt(can_frame_t can_frame_err)
         can_evt = CANDEV_EVENT_TX_ERROR;
     }
     else if (can_err_type & CAN_ERR_CRTL) {
-        switch(can_frame_err.data[1]) {
+        switch (can_frame_err.data[1]) {
         case CAN_ERR_CRTL_RX_OVERFLOW:
             can_evt = CANDEV_EVENT_RX_ERROR;
             break;
@@ -168,7 +168,11 @@ static int _init(candev_t *candev)
     can_err_mask_t err_mask = CAN_ERR_TX_TIMEOUT |
                               CAN_ERR_BUSOFF |
                               CAN_ERR_CRTL;
-    ret = real_setsockopt(dev->sock, SOL_CAN_RAW, CAN_RAW_ERR_FILTER,
+    ret = real_setsockopt(dev->sock, SOL_CAN_RAW,
+#ifdef MODULE_FDCAN
+                          CAN_RAW_FD_FRAMES |
+#endif
+                          CAN_RAW_ERR_FILTER,
                           &err_mask, sizeof(err_mask));
 
     if (ret < 0) {
