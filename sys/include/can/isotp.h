@@ -131,6 +131,9 @@ struct isotp {
 
 #define CAN_ISOTP_TX_FLAGS_MASK 0xFFFF0000 /**< tx flags mask */
 #define CAN_ISOTP_TX_DONT_WAIT  0x00010000 /**< do not send a tx confirmation msg */
+#ifdef MODULE_FDCAN
+#define CAN_ISOTP_TX_FD         0x00020000 /**< send as FD CAN frames */
+#endif
 /** @} */
 
 /**
@@ -169,7 +172,7 @@ kernel_pid_t isotp_init(char *stack, int stacksize, char priority, const char *n
  * @return the number of bytes sent
  * @return < 0 if an error occurred  (-EBUSY, -ENOMEM)
  */
-int isotp_send(struct isotp *isotp, const void *buf, int len, int flags);
+int isotp_send(struct isotp *isotp, const void *buf, size_t len, int flags);
 
 /**
  * @brief Bind an isotp channel

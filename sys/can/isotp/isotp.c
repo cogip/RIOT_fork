@@ -67,6 +67,7 @@ enum {
 };
 
 #define MAX_MSG_LENGTH 4095
+#define CANFD_MAX_MSG_LENGTH 4294967295
 
 /* N_PCI type values in bits 7-4 of N_PCI bytes */
 #define N_PCI_SF 0x00 /* single frame */
@@ -77,6 +78,8 @@ enum {
 #define N_PCI_SZ 1  /* size of the PCI byte #1 */
 #define SF_PCI_SZ 1 /* size of SingleFrame PCI including 4 bit SF_DL */
 #define FF_PCI_SZ 2 /* size of FirstFrame PCI including 12 bit FF_DL */
+#define CANFD_SF_DL_SZ 1 /* size of FirstFrame Data Length FF_DL for CAN_FD */
+#define CANFD_FF_DL_SZ 4 /* size of FirstFrame Data Length FF_DL for CAN_FD */
 #define FC_CONTENT_SZ 3 /* flow control content size in byte (FS/BS/STmin) */
 
 /* Flow Status given in FC frame */
@@ -89,7 +92,7 @@ static struct isotp *isotp_list = NULL;
 static mutex_t lock = MUTEX_INIT;
 
 static void _rx_timeout(void *arg);
-static int _isotp_send_fc(struct isotp *isotp, int ae, uint8_t status);
+static int _isotp_send_fc(struct isotp *isotp, uint8_t ae, uint8_t status);
 static int _isotp_tx_send(struct isotp *isotp, can_frame_t *frame);
 
 static int _send_msg(msg_t *msg, can_reg_entry_t *entry)
@@ -189,7 +192,7 @@ static void _tx_timeout(void *arg)
     msg_send(&msg, isotp_pid);
 }
 
-static int _isotp_rcv_fc(struct isotp *isotp, can_frame_t *frame, int ae)
+static int _isotp_rcv_fc(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
     if (isotp->tx.state != ISOTP_WAIT_FC) {
         return 0;
@@ -254,13 +257,32 @@ static int _isotp_rcv_fc(struct isotp *isotp, can_frame_t *frame, int ae)
     return 0;
 }
 
-static int _isotp_rcv_sf(struct isotp *isotp, can_frame_t *frame, int ae)
+static int _isotp_rcv_sf(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
     ztimer_remove(ZTIMER_USEC, &isotp->rx_timer);
     isotp->rx.state = ISOTP_IDLE;
 
-    int len = (frame->data[ae] & 0x0F);
-    if (len > frame->len - (SF_PCI_SZ + ae)) {
+    size_t len_mask = 0x0F;
+    size_t canfd_offset = 0;
+
+    /* First byte should be 0 for CAN FD frames */
+    if(frame->data[ae] == 0) {
+#ifdef MODULE_FDCAN
+        if (!(frame->flags & CANFD_FDF)) {
+            return 1;
+        }
+        /* Length is on byte (ae + 1) on CAN FD frames */
+        canfd_offset = 1;
+
+        len_mask = 0xFF;
+#else
+        /* CAN FD not supported */
+        return 1;
+#endif /* MODULE_FDCAN */
+    }
+
+    size_t len = (frame->data[ae + canfd_offset] & len_mask);
+    if (len > frame->len - (SF_PCI_SZ + ae + canfd_offset)) {
         return 1;
     }
 
@@ -271,26 +293,50 @@ static int _isotp_rcv_sf(struct isotp *isotp, can_frame_t *frame, int ae)
     isotp->rx.snip = snip;
 
     isotp->rx.idx = 0;
-    for (size_t i = SF_PCI_SZ + ae; i < isotp->rx.snip->size + ae + SF_PCI_SZ; i++) {
+    for (size_t i = SF_PCI_SZ + ae + canfd_offset; i < isotp->rx.snip->size + ae + SF_PCI_SZ + canfd_offset; i++) {
         ((uint8_t *)isotp->rx.snip->data)[isotp->rx.idx++] = frame->data[i];
     }
 
     return _isotp_dispatch_rx(isotp);
 }
 
-static int _isotp_rcv_ff(struct isotp *isotp, can_frame_t *frame, int ae)
+static int _isotp_rcv_ff(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
     isotp->rx.state = ISOTP_IDLE;
 
-    int len = (frame->data[ae] & 0x0F) << 8;
-    len += frame->data[ae + 1];
+    size_t len = 0;
+    size_t max_msg_length = MAX_MSG_LENGTH;
+
+    /* 2 first bytes should be 0 for CAN FD frames */
+    if (((frame->data[ae] & 0x0F) == 0) && (frame->data[ae + 1] == 0)) {
+#ifdef MODULE_FDCAN
+        /* If it is a CAN FD ISOTP First Frame, the CAN frame should be a CAN FD one */
+        if (!(frame->flags & CANFD_FDF)) {
+            return 1;
+        }
+        /* Length is on byte (ae + 2) on CAN FD frames */
+        len = (frame->data[ae + 2 ] << 24)
+                     + (frame->data[ae + 3] << 16)
+                     + (frame->data[ae + 4] << 8)
+                     + frame->data[ae + 5];
+
+        max_msg_length = CANFD_MAX_MSG_LENGTH;
+#else
+        /* CAN FD not supported */
+        return 1;
+#endif /* MODULE_FDCAN */
+    }
+    else {
+        len = (frame->data[ae] & 0x0F) << 8;
+        len += frame->data[ae + 1];
+    }
 
     if (isotp->rx.snip) {
         DEBUG("_isotp_rcv_ff: freeing previous rx buf\n");
         gnrc_pktbuf_release(isotp->rx.snip);
     }
 
-    if (len > MAX_MSG_LENGTH) {
+    if (len > max_msg_length) {
         if (!(isotp->opt.flags & CAN_ISOTP_LISTEN_MODE)) {
             _isotp_send_fc(isotp, ae, ISOTP_FC_OVFLW);
         }
@@ -312,9 +358,9 @@ static int _isotp_rcv_ff(struct isotp *isotp, can_frame_t *frame, int ae)
     }
 
     if (IS_ACTIVE(ENABLE_DEBUG)) {
-        DEBUG("_isotp_rcv_ff: rx.buf=");
+        DEBUG("_isotp_rcv_ff: rx.buf=0x");
         for (unsigned i = 0; i < isotp->rx.idx; i++) {
-            DEBUG("%02hhx", ((uint8_t *)isotp->rx.snip->data)[i]);
+            DEBUG("%02X", ((uint8_t *)isotp->rx.snip->data)[i]);
         }
         DEBUG("\n");
     }
@@ -332,7 +378,7 @@ static int _isotp_rcv_ff(struct isotp *isotp, can_frame_t *frame, int ae)
     return 0;
 }
 
-static int _isotp_rcv_cf(struct isotp *isotp, can_frame_t *frame, int ae)
+static int _isotp_rcv_cf(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
     DEBUG("_isotp_rcv_cf: state=%d\n", isotp->rx.state);
 
@@ -360,9 +406,9 @@ static int _isotp_rcv_cf(struct isotp *isotp, can_frame_t *frame, int ae)
     }
 
     if (IS_ACTIVE(ENABLE_DEBUG)) {
-        DEBUG("_isotp_rcv_cf: rx.buf=");
+        DEBUG("_isotp_rcv_cf: rx.buf=0x");
         for (unsigned i = 0; i < isotp->rx.idx; i++) {
-            DEBUG("%02hhx", ((uint8_t *)isotp->rx.snip->data)[i]);
+            DEBUG("%02X", ((uint8_t *)isotp->rx.snip->data)[i]);
         }
         DEBUG("\n");
     }
@@ -423,15 +469,15 @@ static int _isotp_rcv(struct isotp *isotp, can_frame_t *frame)
     return 1;
 }
 
-static int _isotp_send_fc(struct isotp *isotp, int ae, uint8_t status)
+static int _isotp_send_fc(struct isotp *isotp, uint8_t ae, uint8_t status)
 {
     can_frame_t fc;
 
     fc.can_id = isotp->opt.tx_id;
 
     if (isotp->opt.flags & CAN_ISOTP_TX_PADDING) {
-        memset(fc.data, isotp->opt.txpad_content, CAN_MAX_DLEN);
-        fc.len = CAN_MAX_DLEN;
+        memset(fc.data, isotp->opt.txpad_content, DEFAULT_CAN_MAX_DLEN);
+        fc.len = DEFAULT_CAN_MAX_DLEN;
     }
     else {
         fc.len = ae + FC_CONTENT_SZ;
@@ -468,11 +514,11 @@ static int _isotp_send_fc(struct isotp *isotp, int ae, uint8_t status)
     }
 }
 
-static void _isotp_create_ff(struct isotp *isotp, can_frame_t *frame, int ae)
+static void _isotp_create_ff(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
 
     frame->can_id = isotp->opt.tx_id;
-    frame->len = CAN_MAX_DLEN;
+    frame->len = DEFAULT_CAN_MAX_DLEN;
 
     if (ae) {
         frame->data[0] = isotp->opt.ext_address;
@@ -481,17 +527,30 @@ static void _isotp_create_ff(struct isotp *isotp, can_frame_t *frame, int ae)
     frame->data[ae] = (uint8_t)(isotp->tx.snip->size >> 8) | N_PCI_FF;
     frame->data[ae + 1] = (uint8_t) isotp->tx.snip->size & 0xFFU;
 
-    for (int i = ae + FF_PCI_SZ; i < CAN_MAX_DLEN; i++) {
+    for (int i = ae + FF_PCI_SZ; i < DEFAULT_CAN_MAX_DLEN; i++) {
         frame->data[i] = ((uint8_t *)isotp->tx.snip->data)[isotp->tx.idx++];
     }
 
     isotp->tx.sn = 1;
 }
 
-static void _isotp_fill_dataframe(struct isotp *isotp, can_frame_t *frame, int ae)
+static void _isotp_fill_dataframe(struct isotp *isotp, can_frame_t *frame, uint8_t ae)
 {
-    size_t pci_len = N_PCI_SZ + ae;
-    size_t space = CAN_MAX_DLEN - pci_len;
+    size_t canfd_offset = 0;
+#ifdef MODULE_FDCAN
+    if (!(isotp->opt.flags & CAN_ISOTP_TX_FD)) {
+        switch (frame->data[ae]) {
+            case N_PCI_SF:
+                canfd_offset = 1;
+                break;
+            case N_PCI_FF:
+                canfd_offset = 2;
+                break;
+        }
+    }
+#endif /* MODULE_FDCAN */
+    size_t pci_len = N_PCI_SZ + ae + canfd_offset;
+    size_t space = DEFAULT_CAN_MAX_DLEN - pci_len;
     size_t num_bytes = MIN(space, isotp->tx.snip->size - isotp->tx.idx);
 
     frame->can_id = isotp->opt.tx_id;
@@ -502,7 +561,7 @@ static void _isotp_fill_dataframe(struct isotp *isotp, can_frame_t *frame, int a
 
     if (num_bytes < space) {
         if (isotp->opt.flags & CAN_ISOTP_TX_PADDING) {
-            frame->len = CAN_MAX_DLEN;
+            frame->len = DEFAULT_CAN_MAX_DLEN;
             memset(frame->data, isotp->opt.txpad_content, frame->len);
         }
     }
@@ -519,7 +578,7 @@ static void _isotp_fill_dataframe(struct isotp *isotp, can_frame_t *frame, int a
 
 static void _isotp_tx_timeout_task(struct isotp *isotp)
 {
-    int ae = (isotp->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
+    uint8_t ae = (isotp->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
     can_frame_t frame;
 
     DEBUG("_isotp_tx_timeout_task: state=%d\n", isotp->tx.state);
@@ -643,12 +702,25 @@ static int _isotp_send_sf_ff(struct isotp *isotp)
     can_frame_t frame;
     unsigned ae = (isotp->opt.flags & CAN_ISOTP_EXTEND_ADDR) ? 1 : 0;
 
-    if (isotp->tx.snip->size <= CAN_MAX_DLEN - SF_PCI_SZ - ae) {
+    int canfd_offset = 0;
+
+#ifdef MODULE_FDCAN
+    if (!(isotp->opt.flags & CAN_ISOTP_TX_FD)) {
+        canfd_offset = 1;
+    }
+#endif /* MODULE_FDCAN */
+
+    if (isotp->tx.snip->size <= DEFAULT_CAN_MAX_DLEN - SF_PCI_SZ - ae - canfd_offset) {
+        frame.data[ae] = N_PCI_SF;
+
         /* Fits into a single frame */
         _isotp_fill_dataframe(isotp, &frame, ae);
 
-        frame.data[ae] = N_PCI_SF;
+#ifdef MODULE_FDCAN
+        frame.data[ae + canfd_offset] = isotp->tx.snip->size;
+#else
         frame.data[ae] |= isotp->tx.snip->size;
+#endif /* MODULE_FDCAN */
 
         isotp->tx.state = ISOTP_SENDING_SF;
     }
@@ -741,7 +813,7 @@ kernel_pid_t isotp_init(char *stack, int stacksize, char priority, const char *n
     return res;
 }
 
-int isotp_send(struct isotp *isotp, const void *buf, int len, int flags)
+int isotp_send(struct isotp *isotp, const void *buf, size_t len, int flags)
 {
     assert(isotp != NULL);
 #ifdef MODULE_CAN_MBOX
@@ -750,7 +822,13 @@ int isotp_send(struct isotp *isotp, const void *buf, int len, int flags)
 #else
     assert(isotp->entry.target.pid != KERNEL_PID_UNDEF);
 #endif
+#ifdef MODULE_FDCAN
+    if (!(flags & CAN_ISOTP_TX_FD)) {
+        assert (len && len <= MAX_MSG_LENGTH);
+    }
+#else
     assert (len && len <= MAX_MSG_LENGTH);
+#endif
 
     if (isotp->tx.state != ISOTP_IDLE) {
         return -EBUSY;
