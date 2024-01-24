@@ -95,7 +95,7 @@ int pca9685_init(pca9685_t *dev, const pca9685_params_t *params)
     dev->powered_on = false;
     dev->params = *params;
 
-    DEBUG_DEV("params=%p", dev, params);
+    DEBUG_DEV("params=%p", dev, (void *)params);
 
     if (gpio_is_valid(dev->params.oe_pin)) {
         /* init the pin an disable outputs first */
