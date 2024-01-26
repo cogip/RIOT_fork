@@ -34,6 +34,8 @@
 
 #include "can/can_trx.h"
 
+#define SHELL_BUFSIZE   512 /* Needed for CAN FD frame */
+
 #ifdef MODULE_TJA1042
 #include "tja1042.h"
 tja1042_trx_t tja1042 = { .trx.driver = &tja1042_driver,
@@ -150,7 +152,7 @@ static int _send(int argc, char **argv, bool rtr)
         frame.can_id = strtoul(argv[3], NULL, 16);
         frame.len = argc - 4;
     }
-    if (frame.len > 8) {
+    if (frame.len > DEFAULT_CAN_MAX_DLEN) {
         puts("Invalid length");
         return 1;
     }
@@ -736,8 +738,8 @@ int main(void)
                                        (void*)i, "receive_thread");
     }
 
-    char line_buf[SHELL_DEFAULT_BUFSIZE];
-    shell_run(_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
+    char line_buf[SHELL_BUFSIZE];
+    shell_run(_commands, line_buf, SHELL_BUFSIZE);
 
     return 0;
 }
