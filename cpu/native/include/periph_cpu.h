@@ -112,6 +112,25 @@ typedef enum {
 #define PROVIDES_PM_SET_LOWEST
 /** @} */
 
+/**
+ * @name I2C Configuration
+ */
+
+#define PERIPH_I2C_NEED_READ_REG    /**< i2c_read_reg required */
+#define PERIPH_I2C_NEED_READ_REGS   /**< i2c_read_regs required */
+#define PERIPH_I2C_NEED_WRITE_REG   /**< i2c_write_reg required */
+#define PERIPH_I2C_NEED_WRITE_REGS  /**< i2c_write_regs required */
+
+#if defined(MODULE_PERIPH_I2C_MOCK) || defined(DOXYGEN)
+/**
+ * @brief   I2C configuration structure type
+ */
+typedef struct {
+    void *dummy;    /**< dummy attribute */
+} i2c_conf_t;
+#endif
+
+
 /* Configuration for the wrapper around the Linux SPI API (periph_spidev_linux)
  *
  * Needs to go here, otherwise the SPI_NEEDS_ are defined after inclusion of
