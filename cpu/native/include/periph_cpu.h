@@ -44,10 +44,6 @@ extern "C" {
  */
 #define PROVIDES_PM_LAYERED_OFF
 
-/* GPIO configuration only if the module is available (=Linux) */
-#if defined(MODULE_PERIPH_GPIO_LINUX) || defined(DOXYGEN)
-#include <linux/gpio.h>
-
 /**
  * @name GPIO Configuration
  * @{
@@ -62,6 +58,10 @@ extern "C" {
  * @brief   Define a custom GPIO_PIN macro for native
  */
 #define GPIO_PIN(port, pin) (gpio_t)((port << GPIO_PORT_SHIFT) | pin)
+
+/* GPIO configuration only if the module is available (=Linux) */
+#if defined(MODULE_PERIPH_GPIO_LINUX) || defined(DOXYGEN)
+#include <linux/gpio.h>
 
 #define HAVE_GPIO_MODE_T
 #ifndef GPIOHANDLE_REQUEST_PULL_DOWN
@@ -95,9 +95,9 @@ typedef enum {
     GPIO_BOTH = GPIO_FALLING | GPIO_RISING          /**< emit interrupt on both flanks */
 } gpio_flank_t;
 
-/** @} */
-
 #endif /* MODULE_PERIPH_GPIO_LINUX | DOXYGEN */
+
+/** @} */
 
 /**
  * @brief   Prevent shared timer functions from being used
