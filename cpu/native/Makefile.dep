@@ -54,3 +54,5 @@ USEMODULE += periph
 
 # UART is needed by startup.c
 USEMODULE += periph_uart
+
+USEMODULE += fdcan

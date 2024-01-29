@@ -107,9 +107,9 @@ struct candev_mcp2515 {
     /** driver configuration */
     const candev_mcp2515_conf_t *conf;
     /** tx mailboxes local copy */
-    const struct can_frame *tx_mailbox[MCP2515_TX_MAILBOXES];
+    const can_frame_t *tx_mailbox[MCP2515_TX_MAILBOXES];
     /** rx mailboxes local copy */
-    struct can_frame rx_buf[MCP2515_RX_MAILBOXES];
+    can_frame_t rx_buf[MCP2515_RX_MAILBOXES];
     /** masks list */
     uint32_t masks[MCP2515_RX_MAILBOXES];
     /** filters list */

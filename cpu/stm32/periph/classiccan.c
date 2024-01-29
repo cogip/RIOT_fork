@@ -50,8 +50,8 @@ typedef enum {
 
 static int _init(candev_t *candev);
 static void _isr(candev_t *candev);
-static int _send(candev_t *candev, const struct can_frame *frame);
-static int _abort(candev_t *candev, const struct can_frame *frame);
+static int _send(candev_t *candev, const can_frame_t *frame);
+static int _abort(candev_t *candev, const can_frame_t *frame);
 static int _set(candev_t *candev, canopt_t opt, void *value, size_t value_len);
 static int _get(candev_t *candev, canopt_t opt, void *value, size_t max_len);
 static int _set_filter(candev_t *candev, const struct can_filter *filter);
@@ -387,7 +387,7 @@ static inline void set_bit_timing(can_t *dev)
                           ((uint32_t)(dev->candev.bittiming.brp - 1) & CAN_BTR_BRP);
 }
 
-static int _send(candev_t *candev, const struct can_frame *frame)
+static int _send(candev_t *candev, const can_frame_t *frame)
 {
     can_t *dev = container_of(candev, can_t, candev);
     CAN_TypeDef *can = dev->conf->can;
@@ -412,14 +412,14 @@ static int _send(candev_t *candev, const struct can_frame *frame)
     else {
         can->sTxMailBox[mailbox].TIR = (frame->can_id & CAN_SFF_MASK) << CAN_TIxR_SFF_SHIFT;
     }
-    can->sTxMailBox[mailbox].TDTR = frame->can_dlc & CAN_TDT0R_DLC;
+    can->sTxMailBox[mailbox].TDTR = frame->len & CAN_TDT0R_DLC;
 
     can->sTxMailBox[mailbox].TDLR = 0;
     can->sTxMailBox[mailbox].TDHR = 0;
-    for (int j = 0; j < 4 && frame->can_dlc > j; j++) {
+    for (int j = 0; j < 4 && frame->len > j; j++) {
         can->sTxMailBox[mailbox].TDLR |= (uint32_t)(frame->data[j] << (8 * j));
     }
-    for (int j = 4; j < 8 && frame->can_dlc > j; j++) {
+    for (int j = 4; j < 8 && frame->len > j; j++) {
         can->sTxMailBox[mailbox].TDHR |= (uint32_t)(frame->data[j] << (8 * (j - 4)));
     }
 
@@ -428,7 +428,7 @@ static int _send(candev_t *candev, const struct can_frame *frame)
     return mailbox;
 }
 
-static int _abort(candev_t *candev, const struct can_frame *frame)
+static int _abort(candev_t *candev, const can_frame_t *frame)
 {
     can_t *dev = container_of(candev, can_t, candev);
     CAN_TypeDef *can = dev->conf->can;
@@ -453,7 +453,7 @@ static int _abort(candev_t *candev, const struct can_frame *frame)
 #define CAN_RIxR_EFF_SHIFT 3
 #define CAN_RDTxR_FMI_SHIFT 8
 
-static int read_frame(can_t *dev, struct can_frame *frame, int mailbox)
+static int read_frame(can_t *dev, can_frame_t *frame, int mailbox)
 {
     CAN_TypeDef *can = dev->conf->can;
 
@@ -470,7 +470,7 @@ static int read_frame(can_t *dev, struct can_frame *frame, int mailbox)
     }
 
     /* Get DLC */
-    frame->can_dlc = can->sFIFOMailBox[mailbox].RDTR & CAN_RDT0R_DLC;
+    frame->len = can->sFIFOMailBox[mailbox].RDTR & CAN_RDT0R_DLC;
 
     /* Get Data */
     for (int j = 0; j < 4; j++) {
@@ -981,7 +981,7 @@ static int _remove_filter(candev_t *candev, const struct can_filter *filter)
 static void tx_conf(can_t *dev, int mailbox)
 {
     candev_t *candev = (candev_t *) dev;
-    const struct can_frame *frame = dev->tx_mailbox[mailbox];
+    const can_frame_t *frame = dev->tx_mailbox[mailbox];
 
     dev->tx_mailbox[mailbox] = NULL;
 
