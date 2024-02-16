@@ -123,7 +123,7 @@ int mcp2515_init_irqs(candev_mcp2515_t *dev);
  * @return                  0 on success
  * @return                  <0 on error
  */
-int mcp2515_send(candev_mcp2515_t *dev, const struct can_frame *frame,
+int mcp2515_send(candev_mcp2515_t *dev, const can_frame_t *frame,
                  int mailbox);
 
 /**
@@ -136,7 +136,7 @@ int mcp2515_send(candev_mcp2515_t *dev, const struct can_frame *frame,
  * @return                  0 on success
  * @return                  <0 on error
  */
-int mcp2515_receive(candev_mcp2515_t *dev, struct can_frame *frame,
+int mcp2515_receive(candev_mcp2515_t *dev, can_frame_t *frame,
                     int mailbox);
 
 /**

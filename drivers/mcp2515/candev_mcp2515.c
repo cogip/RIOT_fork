@@ -41,11 +41,11 @@ static mutex_t _mcp_mutex;
 static int _neednewisr = 0;
 
 static int _init(candev_t *candev);
-static int _send(candev_t *candev, const struct can_frame *frame);
+static int _send(candev_t *candev, const can_frame_t *frame);
 static void _isr(candev_t *candev);
 static int _set(candev_t *candev, canopt_t opt, void *value, size_t value_len);
 static int _get(candev_t *candev, canopt_t opt, void *value, size_t max_len);
-static int _abort(candev_t *candev, const struct can_frame *frame);
+static int _abort(candev_t *candev, const can_frame_t *frame);
 static int _set_filter(candev_t *dev, const struct can_filter *filter);
 static int _remove_filter(candev_t *dev, const struct can_filter *filter);
 
@@ -149,7 +149,7 @@ static int _init(candev_t *candev)
     return res;
 }
 
-static int _send(candev_t *candev, const struct can_frame *frame)
+static int _send(candev_t *candev, const can_frame_t *frame)
 {
     candev_mcp2515_t *dev = container_of(candev, candev_mcp2515_t, candev);
     int box;
@@ -203,7 +203,7 @@ static int _send(candev_t *candev, const struct can_frame *frame)
     return box;
 }
 
-static int _abort(candev_t *candev, const struct can_frame *frame)
+static int _abort(candev_t *candev, const can_frame_t *frame)
 {
     candev_mcp2515_t *dev = container_of(candev, candev_mcp2515_t, candev);
     int box;
@@ -638,7 +638,7 @@ static void _irq_rx(candev_mcp2515_t *dev, int box)
 static void _irq_tx(candev_mcp2515_t *dev, int box)
 {
     DEBUG("Inside mcp2515 tx irq\n");
-    const struct can_frame *frame = dev->tx_mailbox[box];
+    const can_frame_t *frame = dev->tx_mailbox[box];
 
     dev->tx_mailbox[box] = NULL;
 
